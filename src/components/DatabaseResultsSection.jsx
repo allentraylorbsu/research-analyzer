@@ -35,7 +35,19 @@ const DatabaseResultsSection = ({ apiKeys }) => {
       setResults(data)
     } catch (err) {
       console.error('Error loading results:', err)
-      setError(`Failed to load results: ${err.message}`)
+      
+      // Provide specific error messages for common issues
+      let errorMessage = err.message
+      
+      if (err.message.includes('relation "research_analyses" does not exist')) {
+        errorMessage = 'Database table not found. Please run the database-schema.sql file in your Supabase SQL Editor to create the required table.'
+      } else if (err.message.includes('permission denied')) {
+        errorMessage = 'Permission denied. Please check your Supabase RLS policies or API key permissions.'
+      } else if (err.message.includes('Invalid API key')) {
+        errorMessage = 'Invalid Supabase API key. Please check your credentials in Step 1.'
+      }
+      
+      setError(`Failed to load results: ${errorMessage}`)
     } finally {
       setLoading(false)
     }
@@ -118,6 +130,9 @@ const DatabaseResultsSection = ({ apiKeys }) => {
       <h2>📚 Database Results</h2>
       <p className="section-description">
         View, edit, and manage all your research analyses stored in the database.
+        {!isSupabaseConfigured() && (
+          <><br/><strong>Note:</strong> Configure Supabase in Step 1 to enable database features.</>
+        )}
       </p>
 
       {/* Controls */}

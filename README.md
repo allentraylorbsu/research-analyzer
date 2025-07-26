@@ -55,6 +55,7 @@ npm run dev
    - **Step 1**: API keys auto-load and test (or enter your own)
    - **Step 2**: Paste research text and analyze with AI
    - **Step 3**: Explore policy connections
+   - **Step 4**: View and manage database results (requires Supabase setup)
 
 ## API Keys Setup
 
@@ -68,6 +69,26 @@ npm run dev
 2. Create a new project
 3. Get your project URL and anon key from Settings > API
 4. Add them to your `.env.local` file
+5. Run the `database-schema.sql` file in your Supabase SQL Editor to create the required table
+
+## Database Setup
+
+To enable the database features (Step 4 in the app):
+
+1. **Set up Supabase** (see instructions above)
+2. **Create the database table**: 
+   - Go to your Supabase project dashboard
+   - Navigate to SQL Editor
+   - Copy and paste the contents of `database-schema.sql`
+   - Run the script to create the `research_analyses` table
+3. **Verify setup**: The app will show database results once the table is created
+
+The database enables:
+- 💾 Auto-save analysis results
+- 📋 Browse all past analyses
+- 🔍 Search and sort functionality  
+- ✏️ Edit analysis details
+- 🗑️ Delete unwanted results
 
 ## Building for Production
 
