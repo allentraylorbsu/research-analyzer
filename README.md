@@ -30,16 +30,16 @@ cd gold_research_assistant/research-analyzer
 npm install
 ```
 
-3. Set up environment variables:
+3. (Optional) Set up custom environment variables:
 ```bash
 cp .env.example .env.local
 ```
 
-4. Edit `.env.local` and add your API keys:
+**Note**: API keys are pre-configured for this demo! You can override them by editing `.env.local`:
 ```env
-VITE_OPENAI_API_KEY=sk-your_openai_api_key_here
-VITE_SUPABASE_URL=https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key_here
+VITE_OPENAI_API_KEY=your_custom_openai_key_here
+VITE_SUPABASE_URL=your_custom_supabase_url_here
+VITE_SUPABASE_ANON_KEY=your_custom_supabase_key_here
 ```
 
 ## Usage
@@ -52,7 +52,7 @@ npm run dev
 2. Open your browser to `http://localhost:5173`
 
 3. Follow the app workflow:
-   - **Step 1**: Enter your API keys and test connection
+   - **Step 1**: API keys auto-load and test (or enter your own)
    - **Step 2**: Paste research text and analyze with AI
    - **Step 3**: Explore policy connections
 

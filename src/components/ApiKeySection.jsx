@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 const ApiKeySection = ({ apiKeys, setApiKeys }) => {
   const [openaiKey, setOpenaiKey] = useState(import.meta.env.VITE_OPENAI_API_KEY || '')
@@ -6,6 +6,14 @@ const ApiKeySection = ({ apiKeys, setApiKeys }) => {
   const [supabaseKey, setSupabaseKey] = useState(import.meta.env.VITE_SUPABASE_ANON_KEY || '')
   const [connectionStatus, setConnectionStatus] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+
+  // Auto-test connection if environment variables are available
+  useEffect(() => {
+    if (import.meta.env.VITE_OPENAI_API_KEY && !apiKeys) {
+      setConnectionStatus('<div class="loading">Auto-testing with environment variables...</div>')
+      setTimeout(() => testConnection(), 1000) // Small delay for UX
+    }
+  }, [])
 
   const testConnection = async () => {
     if (!openaiKey.trim()) {
@@ -48,11 +56,17 @@ const ApiKeySection = ({ apiKeys, setApiKeys }) => {
     <div className="section">
       <h2>Step 1: Configure API Keys</h2>
       <p className="section-description">
-        Enter your API keys below. These are stored locally and used to connect to OpenAI for analysis.
+        {import.meta.env.VITE_OPENAI_API_KEY ? 
+          'API keys are pre-configured for this demo. You can override them with your own keys if needed.' :
+          'Enter your API keys below. These are stored locally and used to connect to OpenAI for analysis.'
+        }
       </p>
       
       <div className="input-group">
-        <label htmlFor="openai-key">OpenAI API Key *</label>
+        <label htmlFor="openai-key">
+          OpenAI API Key * 
+          {import.meta.env.VITE_OPENAI_API_KEY && <span className="pre-configured">✓ Pre-configured</span>}
+        </label>
         <input
           type="password"
           id="openai-key"
@@ -64,7 +78,10 @@ const ApiKeySection = ({ apiKeys, setApiKeys }) => {
       </div>
 
       <div className="input-group">
-        <label htmlFor="supabase-url">Supabase URL (optional)</label>
+        <label htmlFor="supabase-url">
+          Supabase URL (optional)
+          {import.meta.env.VITE_SUPABASE_URL && <span className="pre-configured">✓ Pre-configured</span>}
+        </label>
         <input
           type="text"
           id="supabase-url"
@@ -76,7 +93,10 @@ const ApiKeySection = ({ apiKeys, setApiKeys }) => {
       </div>
 
       <div className="input-group">
-        <label htmlFor="supabase-key">Supabase Anon Key (optional)</label>
+        <label htmlFor="supabase-key">
+          Supabase Anon Key (optional)
+          {import.meta.env.VITE_SUPABASE_ANON_KEY && <span className="pre-configured">✓ Pre-configured</span>}
+        </label>
         <input
           type="password"
           id="supabase-key"

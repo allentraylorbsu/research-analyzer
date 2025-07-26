@@ -75,6 +75,18 @@
   font-weight: 600;
   color: #4a5568;
   font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pre-configured {
+  font-size: 0.8rem;
+  color: #38a169;
+  background: #c6f6d5;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-weight: 500;
 }
 
 .api-input,
