@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { initializeSupabase } from '../services/supabaseService'
 
 const ApiKeySection = ({ apiKeys, setApiKeys }) => {
   const [openaiKey, setOpenaiKey] = useState(import.meta.env.VITE_OPENAI_API_KEY || '')
@@ -39,6 +40,11 @@ const ApiKeySection = ({ apiKeys, setApiKeys }) => {
       }
 
       setConnectionStatus('<div class="success">✅ OpenAI connection successful!</div>')
+      
+      // Initialize Supabase if credentials are provided
+      if (supabaseUrl && supabaseKey) {
+        initializeSupabase(supabaseUrl, supabaseKey)
+      }
       
       // Store keys for later use
       const keys = { openaiKey, supabaseUrl, supabaseKey }

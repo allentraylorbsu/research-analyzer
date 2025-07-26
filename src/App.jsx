@@ -2,6 +2,7 @@ import { useState } from 'react'
 import ApiKeySection from './components/ApiKeySection'
 import ResearchAnalysisSection from './components/ResearchAnalysisSection' 
 import PolicyConnectionSection from './components/PolicyConnectionSection'
+import DatabaseResultsSection from './components/DatabaseResultsSection'
 import './App.css'
 
 function App() {
@@ -30,6 +31,10 @@ function App() {
         <PolicyConnectionSection 
           apiKeys={apiKeys}
           analysisData={analysisData}
+        />
+
+        <DatabaseResultsSection 
+          apiKeys={apiKeys}
         />
       </main>
     </div>

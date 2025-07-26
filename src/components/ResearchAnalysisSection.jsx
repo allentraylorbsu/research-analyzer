@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { researchAnalysisService } from '../services/supabaseService'
 
 const ResearchAnalysisSection = ({ apiKeys, analysisData, setAnalysisData }) => {
   const [researchText, setResearchText] = useState(`Participants receiving gender-affirming care had 60% lower odds of moderate or severe depression (adjusted odds ratio [aOR], 0.40; 95% CI, 0.17-0.95; P = .04) and 73% lower odds of suicidality (aOR, 0.27; 95% CI, 0.11-0.65; P = .004) compared with those who did not receive care. No significant association was found with anxiety symptoms (aOR, 0.75; 95% CI, 0.35-1.64; P = .47).`)
@@ -10,6 +11,16 @@ const ResearchAnalysisSection = ({ apiKeys, analysisData, setAnalysisData }) => 
   })
   const [analysisStatus, setAnalysisStatus] = useState('')
   const [isAnalyzing, setIsAnalyzing] = useState(false)
+
+  // Save analysis results to database
+  const saveToDatabase = async (analysisData) => {
+    try {
+      await researchAnalysisService.saveAnalysisResults(paperInfo, researchText, analysisData)
+      console.log('Analysis saved to database successfully')
+    } catch (error) {
+      console.error('Failed to save to database:', error)
+    }
+  }
 
   const analyzeText = async () => {
     if (!apiKeys) {
@@ -83,7 +94,11 @@ ${researchText}
       try {
         const parsedData = JSON.parse(analysisText)
         setAnalysisData(parsedData)
-        setAnalysisStatus('<div class="success">✅ Analysis complete!</div>')
+        
+        // Save to database if Supabase is configured
+        await saveToDatabase(parsedData)
+        
+        setAnalysisStatus('<div class="success">✅ Analysis complete and saved to database!</div>')
       } catch (parseError) {
         console.error('JSON parse error:', parseError)
         console.log('Raw response:', analysisText)
