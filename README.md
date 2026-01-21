@@ -19,7 +19,7 @@ A TypeScript React application for analyzing healthcare workforce research and c
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/research-analyzer.git
+git clone https://github.com/allentraylorbsu/research-analyzer.git
 cd research-analyzer
 
 # Install dependencies
@@ -53,8 +53,7 @@ src/
 │   └── visualization/  # StateRankings, StateFilter
 ├── hooks/              # useApiKeys, usePolicies, useLegiScan, etc.
 ├── services/           # supabase, openai, legiscan, pdfProcessor
-├── types/              # TypeScript interfaces
-└── utils/              # Utility functions
+└── types/              # TypeScript interfaces
 ```
 
 ## Available Scripts
