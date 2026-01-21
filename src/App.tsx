@@ -1,0 +1,587 @@
+/**
+ * Physician Workforce Research Analyzer
+ * Main Application Component
+ */
+
+import { useState, useCallback } from 'react'
+import {
+  Button,
+  CollapsibleSection,
+  StatusMessage,
+  ErrorBoundary
+} from './components/common'
+import { PdfUploader, CategorySelector, ResearchPaperCard } from './components/research'
+import { PolicyBrowser, LegiScanImporter, PolicyConnectionRating } from './components/policy'
+import { StateRankings } from './components/visualization'
+import {
+  useApiKeys,
+  usePolicies,
+  useResearchPapers,
+  useConnections,
+  useStateRankings,
+  useStateFilter
+} from './hooks'
+import { analyzeResearchPaper, AnalysisResponse } from './services/openai'
+import type {
+  ApiKeys,
+  ResearchCategory,
+  ConnectionRating,
+  ConnectionType,
+  PolicyInput,
+  ResearchPaper,
+  Policy
+} from './types'
+import './App.css'
+
+function App() {
+  // Hooks
+  const {
+    apiKeys,
+    connectionStatus,
+    isLoading: isTestingConnection,
+    setApiKeys,
+    testConnections
+  } = useApiKeys()
+
+  const { policies, filteredPolicies, filters: policyFilters, setFilters: setPolicyFilters, bulkCreatePolicies } = usePolicies()
+  const { papers, createPaper } = useResearchPapers()
+  const { createConnection } = useConnections()
+  const { sortedRankings, isLoading: isLoadingRankings, calculateRankings, useMockData } = useStateRankings()
+  const { selectedState, setSelectedState } = useStateFilter()
+
+  // Local state
+  const [activeSection, setActiveSection] = useState<string>('api-keys')
+  const [selectedCategories, setSelectedCategories] = useState<ResearchCategory[]>([])
+  const [uploadedText, setUploadedText] = useState<string>('')
+  const [uploadedTitle, setUploadedTitle] = useState<string>('')
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [isSavingPaper, setIsSavingPaper] = useState(false)
+  const [paperSaved, setPaperSaved] = useState(false)
+  const [analysisResult, setAnalysisResult] = useState<AnalysisResponse | null>(null)
+  const [selectedPaper, setSelectedPaper] = useState<ResearchPaper | null>(null)
+  const [selectedPolicy, setSelectedPolicy] = useState<Policy | null>(null)
+  const [connectionRating, setConnectionRating] = useState<ConnectionRating>({
+    strengthScore: 5,
+    evidenceQuality: 5,
+    workforceRelevance: 5
+  })
+  const [connectionType, setConnectionType] = useState<ConnectionType>('NEUTRAL')
+  const [importError, setImportError] = useState<string | null>(null)
+
+  // API Key form state
+  const [openaiKey, setOpenaiKey] = useState(import.meta.env.VITE_OPENAI_API_KEY || '')
+  const [supabaseUrl, setSupabaseUrl] = useState(import.meta.env.VITE_SUPABASE_URL || '')
+  const [supabaseKey, setSupabaseKey] = useState(import.meta.env.VITE_SUPABASE_ANON_KEY || '')
+  const [legiscanKey, setLegiscanKey] = useState(import.meta.env.VITE_LEGISCAN_API_KEY || '')
+
+  // Handlers
+  const handleSaveApiKeys = useCallback(() => {
+    const keys: ApiKeys = {
+      openaiKey,
+      supabaseUrl,
+      supabaseKey,
+      legiscanKey: legiscanKey || undefined
+    }
+    setApiKeys(keys)
+    testConnections()
+  }, [openaiKey, supabaseUrl, supabaseKey, legiscanKey, setApiKeys, testConnections])
+
+  const handlePdfUpload = useCallback((result: { text: string; title: string }) => {
+    setUploadedText(result.text)
+    setUploadedTitle(result.title)
+    setActiveSection('research')
+    setPaperSaved(false)
+    setAnalysisResult(null)
+  }, [])
+
+  const handleAnalyze = useCallback(async () => {
+    if (!apiKeys?.openaiKey || !uploadedText) return
+
+    setIsAnalyzing(true)
+    setAnalysisResult(null)
+    try {
+      const result = await analyzeResearchPaper(apiKeys.openaiKey, {
+        paperTitle: uploadedTitle,
+        paperText: uploadedText,
+        categories: selectedCategories
+      })
+      setAnalysisResult(result)
+
+      // Update title if AI extracted a better one
+      if (result.title && result.title.length > 5) {
+        setUploadedTitle(result.title)
+      }
+    } catch (err) {
+      console.error('Analysis error:', err)
+    } finally {
+      setIsAnalyzing(false)
+    }
+  }, [apiKeys, uploadedText, uploadedTitle, selectedCategories])
+
+  const handleSavePaper = useCallback(async () => {
+    if (!uploadedText || !uploadedTitle) return
+
+    setIsSavingPaper(true)
+    try {
+      await createPaper({
+        title: uploadedTitle,
+        researchText: uploadedText,
+        categories: selectedCategories
+      })
+      setPaperSaved(true)
+    } catch (err) {
+      console.error('Save error:', err)
+    } finally {
+      setIsSavingPaper(false)
+    }
+  }, [uploadedText, uploadedTitle, selectedCategories, createPaper])
+
+  const handleImportPolicies = useCallback(async (newPolicies: PolicyInput[]) => {
+    setImportError(null)
+    try {
+      await bulkCreatePolicies(newPolicies)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Import failed'
+      setImportError(message)
+      throw err // Re-throw so LegiScanImporter knows it failed
+    }
+  }, [bulkCreatePolicies])
+
+  const handleImportError = useCallback((error: string) => {
+    setImportError(error)
+  }, [])
+
+  const handleCreateConnection = useCallback(async () => {
+    if (!selectedPaper || !selectedPolicy) return
+
+    await createConnection({
+      paperId: selectedPaper.id,
+      policyId: selectedPolicy.policyId,
+      stateJurisdiction: selectedPolicy.jurisdiction,
+      connectionType,
+      ...connectionRating
+    })
+
+    setSelectedPaper(null)
+    setSelectedPolicy(null)
+  }, [selectedPaper, selectedPolicy, connectionType, connectionRating, createConnection])
+
+  return (
+    <ErrorBoundary>
+      <div className="min-h-screen">
+        {/* Header */}
+        <header className="app-header-gradient text-white shadow-xl">
+          <div className="max-w-7xl mx-auto px-6 py-8">
+            <h1 className="text-3xl font-bold tracking-tight">
+              Physician Workforce Research Analyzer
+            </h1>
+            <p className="text-white/90 mt-2 text-lg">
+              Analyze research findings and connect them to healthcare workforce policies
+            </p>
+          </div>
+        </header>
+
+        {/* Main Content */}
+        <main className="max-w-7xl mx-auto px-6 py-10 space-y-8">
+          {/* Section 1: API Keys */}
+          <CollapsibleSection
+            title="API Configuration"
+            defaultOpen={!apiKeys}
+            badge={connectionStatus.openai.connected ? 'Connected' : 'Setup Required'}
+          >
+            <div className="space-y-4">
+              <div className="grid md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    OpenAI API Key *
+                  </label>
+                  <input
+                    type="password"
+                    value={openaiKey}
+                    onChange={(e) => setOpenaiKey(e.target.value)}
+                    placeholder="sk-..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    LegiScan API Key
+                  </label>
+                  <input
+                    type="password"
+                    value={legiscanKey}
+                    onChange={(e) => setLegiscanKey(e.target.value)}
+                    placeholder="Your LegiScan key..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Supabase URL
+                  </label>
+                  <input
+                    type="text"
+                    value={supabaseUrl}
+                    onChange={(e) => setSupabaseUrl(e.target.value)}
+                    placeholder="https://your-project.supabase.co"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Supabase Anon Key
+                  </label>
+                  <input
+                    type="password"
+                    value={supabaseKey}
+                    onChange={(e) => setSupabaseKey(e.target.value)}
+                    placeholder="eyJhbGciOiJIUzI1NiIs..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              <Button
+                onClick={handleSaveApiKeys}
+                isLoading={isTestingConnection}
+              >
+                Save & Test Connection
+              </Button>
+
+              {connectionStatus.openai.connected && (
+                <StatusMessage type="success" message="OpenAI connected successfully" />
+              )}
+            </div>
+          </CollapsibleSection>
+
+          {/* Section 2: Research Analysis */}
+          <CollapsibleSection
+            title="Research Paper Analysis"
+            badge={papers.length}
+            defaultOpen={activeSection === 'research'}
+          >
+            <div className="space-y-6">
+              <PdfUploader onUpload={handlePdfUpload} />
+
+              {uploadedText && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Paper Title
+                    </label>
+                    <input
+                      type="text"
+                      value={uploadedTitle}
+                      onChange={(e) => setUploadedTitle(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md"
+                    />
+                  </div>
+
+                  <CategorySelector
+                    selected={selectedCategories}
+                    onChange={setSelectedCategories}
+                    maxSelections={5}
+                  />
+
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <Button
+                      onClick={handleAnalyze}
+                      disabled={!apiKeys?.openaiKey || isAnalyzing}
+                      isLoading={isAnalyzing}
+                    >
+                      Analyze Research
+                    </Button>
+                    <Button
+                      variant="secondary"
+                      onClick={handleSavePaper}
+                      disabled={isSavingPaper || paperSaved}
+                      isLoading={isSavingPaper}
+                    >
+                      {paperSaved ? 'Saved to Database' : 'Save Paper'}
+                    </Button>
+                    {paperSaved && (
+                      <span className="text-green-600 text-sm flex items-center gap-1">
+                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                        Paper saved with {selectedCategories.length} categories
+                      </span>
+                    )}
+                  </div>
+
+                  {analysisResult && (
+                    <div className="space-y-6 mt-6">
+                      {/* Summary/Abstract */}
+                      <div className="bg-gradient-to-r from-indigo-50 to-purple-50 p-5 rounded-xl border border-indigo-100">
+                        <h4 className="text-lg font-semibold text-indigo-900 mb-2 flex items-center gap-2">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          Summary
+                        </h4>
+                        <p className="text-gray-700 leading-relaxed">{analysisResult.summary}</p>
+                      </div>
+
+                      {/* Key Findings */}
+                      <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
+                        <h4 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                          <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                          </svg>
+                          Key Findings
+                        </h4>
+                        <ul className="space-y-2">
+                          {analysisResult.keyFindings.map((finding, idx) => (
+                            <li key={idx} className="flex items-start gap-3">
+                              <span className="flex-shrink-0 w-6 h-6 bg-green-100 text-green-700 rounded-full flex items-center justify-center text-sm font-medium">
+                                {idx + 1}
+                              </span>
+                              <span className="text-gray-700">{finding}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      {/* Health Outcomes */}
+                      {analysisResult.outcomes.length > 0 && (
+                        <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
+                          <h4 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                            <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                            </svg>
+                            Health Outcomes
+                          </h4>
+                          <div className="space-y-3">
+                            {analysisResult.outcomes.map((outcome, idx) => (
+                              <div key={idx} className="p-3 bg-gray-50 rounded-lg">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="font-medium text-gray-900">{outcome.outcomeName}</span>
+                                  <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+                                    outcome.effectDirection === 'positive' ? 'bg-green-100 text-green-700' :
+                                    outcome.effectDirection === 'negative' ? 'bg-red-100 text-red-700' :
+                                    outcome.effectDirection === 'mixed' ? 'bg-yellow-100 text-yellow-700' :
+                                    'bg-gray-100 text-gray-700'
+                                  }`}>
+                                    {outcome.effectDirection}
+                                  </span>
+                                  <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+                                    outcome.confidence === 'high' ? 'bg-blue-100 text-blue-700' :
+                                    outcome.confidence === 'moderate' ? 'bg-blue-50 text-blue-600' :
+                                    'bg-gray-100 text-gray-600'
+                                  }`}>
+                                    {outcome.confidence} confidence
+                                  </span>
+                                </div>
+                                {outcome.description && (
+                                  <p className="text-sm text-gray-600">{outcome.description}</p>
+                                )}
+                                {outcome.populationAffected && (
+                                  <p className="text-xs text-gray-500 mt-1">Population: {outcome.populationAffected}</p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Study Quality */}
+                      <div className="bg-white p-5 rounded-xl border border-gray-200 shadow-sm">
+                        <h4 className="text-lg font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                          <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                          </svg>
+                          Study Quality
+                        </h4>
+                        <div className="flex items-center gap-4 mb-3">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-gray-600">Quality Score:</span>
+                            <span className={`px-3 py-1 rounded-full text-sm font-semibold ${
+                              analysisResult.studyQuality.qualityScoreEstimate >= 7 ? 'bg-green-100 text-green-700' :
+                              analysisResult.studyQuality.qualityScoreEstimate >= 4 ? 'bg-yellow-100 text-yellow-700' :
+                              'bg-red-100 text-red-700'
+                            }`}>
+                              {analysisResult.studyQuality.qualityScoreEstimate}/10
+                            </span>
+                          </div>
+                          {analysisResult.studyQuality.studyDesign && (
+                            <span className="text-sm text-gray-600">
+                              Design: <span className="font-medium">{analysisResult.studyQuality.studyDesign}</span>
+                            </span>
+                          )}
+                        </div>
+                        {analysisResult.studyQuality.strengths && analysisResult.studyQuality.strengths.length > 0 && (
+                          <div className="mb-2">
+                            <span className="text-sm font-medium text-green-700">Strengths: </span>
+                            <span className="text-sm text-gray-600">{analysisResult.studyQuality.strengths.join(', ')}</span>
+                          </div>
+                        )}
+                        {analysisResult.studyQuality.limitations && analysisResult.studyQuality.limitations.length > 0 && (
+                          <div>
+                            <span className="text-sm font-medium text-orange-700">Limitations: </span>
+                            <span className="text-sm text-gray-600">{analysisResult.studyQuality.limitations.join(', ')}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Policy Implications */}
+                      {analysisResult.policyImplications.length > 0 && (
+                        <div className="bg-gradient-to-r from-amber-50 to-orange-50 p-5 rounded-xl border border-amber-100">
+                          <h4 className="text-lg font-semibold text-amber-900 mb-3 flex items-center gap-2">
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                            </svg>
+                            Policy Implications
+                          </h4>
+                          <ul className="space-y-2">
+                            {analysisResult.policyImplications.map((implication, idx) => (
+                              <li key={idx} className="flex items-start gap-2">
+                                <svg className="w-4 h-4 text-amber-600 mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clipRule="evenodd" />
+                                </svg>
+                                <span className="text-gray-700">{implication}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </CollapsibleSection>
+
+          {/* Section 3: Policy Import */}
+          <CollapsibleSection
+            title="Policy Import (LegiScan)"
+            badge={policies.length}
+          >
+            {importError && (
+              <StatusMessage
+                type="error"
+                message={importError}
+                onDismiss={() => setImportError(null)}
+              />
+            )}
+            <LegiScanImporter
+              apiKey={apiKeys?.legiscanKey}
+              onImport={handleImportPolicies}
+              onError={handleImportError}
+            />
+          </CollapsibleSection>
+
+          {/* Section 4: Policy Browser */}
+          <CollapsibleSection
+            title="Policy Browser"
+            badge={filteredPolicies.length}
+          >
+            <PolicyBrowser
+              policies={filteredPolicies}
+              filters={policyFilters}
+              onFiltersChange={setPolicyFilters}
+              onPolicySelect={setSelectedPolicy}
+              selectedPolicyId={selectedPolicy?.policyId}
+            />
+          </CollapsibleSection>
+
+          {/* Section 5: Create Connection */}
+          <CollapsibleSection title="Create Policy-Research Connection">
+            <div className="space-y-6">
+              <div className="grid md:grid-cols-2 gap-6">
+                <div>
+                  <h4 className="font-medium mb-2">Select Research Paper</h4>
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {papers.length === 0 ? (
+                      <p className="text-gray-500 text-sm py-4">
+                        No saved papers yet. Upload and save a paper in the Research Paper Analysis section above.
+                      </p>
+                    ) : (
+                      papers.slice(0, 10).map(paper => (
+                        <ResearchPaperCard
+                          key={paper.id}
+                          paper={paper}
+                          showActions={false}
+                          isSelected={selectedPaper?.id === paper.id}
+                          onSelect={() => setSelectedPaper(paper)}
+                        />
+                      ))
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <h4 className="font-medium mb-2">Select Policy</h4>
+                  {selectedPolicy ? (
+                    <div className="p-4 bg-blue-50 rounded-lg">
+                      <p className="font-medium">{selectedPolicy.title}</p>
+                      <p className="text-sm text-gray-600">{selectedPolicy.jurisdiction}</p>
+                      <Button
+                        size="small"
+                        variant="ghost"
+                        onClick={() => setSelectedPolicy(null)}
+                        className="mt-2"
+                      >
+                        Change
+                      </Button>
+                    </div>
+                  ) : (
+                    <p className="text-gray-500">Select a policy from the Policy Browser above</p>
+                  )}
+                </div>
+              </div>
+
+              {selectedPaper && selectedPolicy && (
+                <>
+                  <PolicyConnectionRating
+                    rating={connectionRating}
+                    connectionType={connectionType}
+                    onChange={(rating, type) => {
+                      setConnectionRating(rating)
+                      setConnectionType(type)
+                    }}
+                  />
+                  <Button onClick={handleCreateConnection}>
+                    Create Connection
+                  </Button>
+                </>
+              )}
+            </div>
+          </CollapsibleSection>
+
+          {/* Section 6: State Rankings */}
+          <CollapsibleSection
+            title="State Workforce Rankings"
+            badge={sortedRankings.length}
+          >
+            <div className="space-y-4">
+              <div className="flex gap-4">
+                <Button onClick={() => calculateRankings()}>
+                  Calculate from Data
+                </Button>
+                <Button variant="secondary" onClick={useMockData}>
+                  Load Demo Data
+                </Button>
+              </div>
+
+              <StateRankings
+                rankings={sortedRankings}
+                isLoading={isLoadingRankings}
+                onStateSelect={setSelectedState}
+                selectedState={selectedState || undefined}
+              />
+            </div>
+          </CollapsibleSection>
+        </main>
+
+        {/* Footer */}
+        <footer className="bg-gray-800 mt-16 py-8">
+          <div className="max-w-7xl mx-auto px-6 text-center text-gray-400 text-sm">
+            <p className="font-medium text-gray-300">Physician Workforce Research Analyzer</p>
+            <p className="mt-1">Open Source Healthcare Policy Research Tool</p>
+          </div>
+        </footer>
+      </div>
+    </ErrorBoundary>
+  )
+}
+
+export default App
