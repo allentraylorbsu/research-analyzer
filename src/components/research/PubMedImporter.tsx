@@ -86,13 +86,13 @@ export function PubMedImporter({ onImport, existingPmids = [] }: PubMedImporterP
         .map(paper => ({
           title: paper.title,
           firstAuthor: paper.authors[0] || undefined,
-          allAuthors: paper.authors.join(', ') || undefined,
+          allAuthors: paper.authors.length > 0 ? paper.authors.join(', ') : undefined,
           journal: paper.journal || undefined,
           publicationYear: paper.publicationYear || undefined,
           abstract: paper.abstract || undefined,
           doi: paper.doi || undefined,
           pmid: paper.pmid,
-          researchText: paper.abstract || '',
+          researchText: paper.abstract || 'No abstract available',
           categories: inferCategories(paper),
           sourceUrl: `https://pubmed.ncbi.nlm.nih.gov/${paper.pmid}/`
         }))

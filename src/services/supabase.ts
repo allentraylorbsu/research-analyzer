@@ -460,11 +460,16 @@ function mapPolicyToDb(policy: PolicyInput): Record<string, unknown> {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapPaperFromDb(row: any): ResearchPaper {
+  // Convert all_authors array from database to comma-separated string
+  const allAuthors = Array.isArray(row.all_authors)
+    ? row.all_authors.join(', ')
+    : row.all_authors
+
   return {
     id: row.id,
     title: row.title,
     firstAuthor: row.first_author,
-    allAuthors: row.all_authors,
+    allAuthors,
     journal: row.journal,
     publicationYear: row.publication_year,
     abstract: row.abstract,
@@ -485,10 +490,16 @@ function mapPapersFromDb(rows: any[]): ResearchPaper[] {
 }
 
 function mapPaperToDb(paper: ResearchPaperInput): Record<string, unknown> {
+  // Convert allAuthors string to array for database (expects TEXT[])
+  let authorsArray: string[] | undefined
+  if (paper.allAuthors) {
+    authorsArray = paper.allAuthors.split(',').map(a => a.trim()).filter(Boolean)
+  }
+
   return {
     title: paper.title,
     first_author: paper.firstAuthor,
-    all_authors: paper.allAuthors,
+    all_authors: authorsArray,
     journal: paper.journal,
     publication_year: paper.publicationYear,
     abstract: paper.abstract,
