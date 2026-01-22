@@ -11,7 +11,7 @@ import {
   ErrorBoundary
 } from './components/common'
 import { PdfUploader, CategorySelector, ResearchPaperCard, PubMedImporter } from './components/research'
-import { PolicyBrowser, LegiScanImporter, PolicyConnectionRating } from './components/policy'
+import { PolicyBrowser, LegiScanImporter, PolicyConnectionRating, PolicyDiscovery } from './components/policy'
 import { StateRankings } from './components/visualization'
 import {
   useApiKeys,
@@ -77,6 +77,8 @@ function App() {
   const [supabaseUrl, setSupabaseUrl] = useState(import.meta.env.VITE_SUPABASE_URL || '')
   const [supabaseKey, setSupabaseKey] = useState(import.meta.env.VITE_SUPABASE_ANON_KEY || '')
   const [legiscanKey, setLegiscanKey] = useState(import.meta.env.VITE_LEGISCAN_API_KEY || '')
+  const [openStatesKey, setOpenStatesKey] = useState(import.meta.env.VITE_OPENSTATES_API_KEY || '')
+  const [newsApiKey, setNewsApiKey] = useState(import.meta.env.VITE_NEWSAPI_KEY || '')
 
   // Handlers
   const handleSaveApiKeys = useCallback(() => {
@@ -151,6 +153,10 @@ function App() {
     }
   }, [bulkCreatePolicies])
 
+  const handleImportSinglePolicy = useCallback(async (policy: PolicyInput) => {
+    await bulkCreatePolicies([policy])
+  }, [bulkCreatePolicies])
+
   const handleImportError = useCallback((error: string) => {
     setImportError(error)
   }, [])
@@ -223,6 +229,9 @@ function App() {
     .filter(p => p.pmid)
     .map(p => p.pmid as string)
 
+  // Get list of existing policy titles to prevent duplicates
+  const existingPolicyTitles = policies.map(p => p.title)
+
   return (
     <ErrorBoundary>
       <div className="min-h-screen">
@@ -274,6 +283,30 @@ function App() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Open States API Key
+                  </label>
+                  <input
+                    type="password"
+                    value={openStatesKey}
+                    onChange={(e) => setOpenStatesKey(e.target.value)}
+                    placeholder="Your Open States key..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    NewsAPI Key
+                  </label>
+                  <input
+                    type="password"
+                    value={newsApiKey}
+                    onChange={(e) => setNewsApiKey(e.target.value)}
+                    placeholder="Your NewsAPI key..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
                     Supabase URL
                   </label>
                   <input
@@ -311,9 +344,24 @@ function App() {
             </div>
           </CollapsibleSection>
 
+          {/* ========== RESEARCH PAPERS SECTION GROUP ========== */}
+          <div className="mt-8 mb-4">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 bg-gradient-to-br from-green-500 to-teal-600 rounded-lg">
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Research Papers</h2>
+                <p className="text-sm text-gray-600">Upload your own papers or search PubMed to find research</p>
+              </div>
+            </div>
+          </div>
+
           {/* Section 2: Research Analysis */}
           <CollapsibleSection
-            title="Research Paper Analysis"
+            title="Upload & Analyze Paper"
             badge={papers.length}
             defaultOpen={activeSection === 'research'}
           >
@@ -510,15 +558,14 @@ function App() {
 
           {/* Section 2.5: PubMed Research Search */}
           <CollapsibleSection
-            title="PubMed Research Search"
+            title="Search PubMed"
             badge={papers.filter(p => p.pmid).length > 0 ? `${papers.filter(p => p.pmid).length} imported` : undefined}
           >
             <div className="space-y-4">
               <div className="bg-gradient-to-r from-green-50 to-teal-50 p-4 rounded-lg border border-green-100">
-                <h4 className="font-medium text-green-900 mb-1">Search PubMed for Workforce Research</h4>
+                <h4 className="font-medium text-green-900 mb-1">Find Research Papers on PubMed</h4>
                 <p className="text-sm text-green-700">
-                  Find and import peer-reviewed research papers on physician workforce, migration, retention, and healthcare policy.
-                  Imported papers can then be connected to policies using AI-powered suggestions.
+                  Don't have a paper yet? Search PubMed for peer-reviewed research on physician workforce, migration, retention, and healthcare policy.
                 </p>
               </div>
               <PubMedImporter
@@ -528,9 +575,24 @@ function App() {
             </div>
           </CollapsibleSection>
 
+          {/* ========== POLICIES SECTION GROUP ========== */}
+          <div className="mt-10 mb-4">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 bg-gradient-to-br from-purple-500 to-indigo-600 rounded-lg">
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Policies</h2>
+                <p className="text-sm text-gray-600">Import from LegiScan or discover policies via Open States & news sources</p>
+              </div>
+            </div>
+          </div>
+
           {/* Section 3: Policy Import */}
           <CollapsibleSection
-            title="Policy Import (LegiScan)"
+            title="LegiScan Import"
             badge={policies.length}
           >
             {importError && (
@@ -546,6 +608,62 @@ function App() {
               onError={handleImportError}
             />
           </CollapsibleSection>
+
+          {/* Section 3.5: Policy Discovery */}
+          <CollapsibleSection
+            title="Discover Policies (Open States & News)"
+            badge={openStatesKey || newsApiKey ? 'Active' : 'Setup Required'}
+          >
+            <div className="space-y-4">
+              <div className="bg-gradient-to-r from-purple-50 to-indigo-50 p-4 rounded-lg border border-purple-100">
+                <h4 className="font-medium text-purple-900 mb-1">Search for Policies Across Multiple Sources</h4>
+                <p className="text-sm text-purple-700">
+                  Search state legislation (Open States), recent news (NewsAPI), or historical news (GDELT - up to 5 years, free).
+                  Filter by trusted sources like KFF.org, Health Affairs, and more.
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                  <a
+                    href="https://openstates.org/accounts/login/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-purple-600 hover:text-purple-800 underline"
+                  >
+                    Get Open States API Key (Free)
+                  </a>
+                  <span className="text-purple-300">|</span>
+                  <a
+                    href="https://newsapi.org/register"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-purple-600 hover:text-purple-800 underline"
+                  >
+                    Get NewsAPI Key (Free tier: 100 requests/day)
+                  </a>
+                </div>
+              </div>
+              <PolicyDiscovery
+                openStatesApiKey={openStatesKey}
+                newsApiKey={newsApiKey}
+                onImportPolicy={handleImportSinglePolicy}
+                existingPolicyTitles={existingPolicyTitles}
+              />
+            </div>
+          </CollapsibleSection>
+
+          {/* ========== ANALYSIS & CONNECTIONS SECTION GROUP ========== */}
+          <div className="mt-10 mb-4">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="p-2 bg-gradient-to-br from-blue-500 to-cyan-600 rounded-lg">
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">Analysis & Connections</h2>
+                <p className="text-sm text-gray-600">Browse data, create connections between research and policies, and view state rankings</p>
+              </div>
+            </div>
+          </div>
 
           {/* Section 4: Policy Browser */}
           <CollapsibleSection

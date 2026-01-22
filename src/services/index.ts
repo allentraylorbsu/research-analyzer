@@ -60,3 +60,31 @@ export {
   generateMockStateRankings,
   getRankingSummary
 } from './stateRankingCalculator'
+
+// Open States API service
+export {
+  searchOpenStates,
+  getBillDetails as getOpenStatesBillDetails,
+  SUGGESTED_LEGISLATION_SEARCHES,
+  getStateName
+} from './openstates'
+export type { OpenStatesBill, OpenStatesSearchResult, OpenStatesSearchOptions } from './openstates'
+
+// NewsAPI service
+export {
+  searchNews,
+  searchTopHeadlines,
+  buildWorkforceNewsQuery,
+  SUGGESTED_NEWS_SEARCHES,
+  getDateFromDaysAgo
+} from './newsapi'
+export type { NewsArticle, NewsSearchResult, NewsSearchOptions } from './newsapi'
+
+// GDELT API service (free historical news)
+export {
+  searchGdelt,
+  SUGGESTED_GDELT_SEARCHES,
+  GDELT_DATE_RANGES,
+  HEALTH_POLICY_DOMAINS
+} from './gdelt'
+export type { GdeltArticle, GdeltSearchResult, GdeltSearchOptions } from './gdelt'

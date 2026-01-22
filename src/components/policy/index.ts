@@ -10,3 +10,6 @@ export type { PolicyConnectionRatingProps } from './PolicyConnectionRating'
 
 export { PolicyBrowser } from './PolicyBrowser'
 export type { PolicyBrowserProps } from './PolicyBrowser'
+
+export { PolicyDiscovery } from './PolicyDiscovery'
+export type { PolicyDiscoveryProps } from './PolicyDiscovery'

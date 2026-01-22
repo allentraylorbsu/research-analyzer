@@ -40,6 +40,8 @@ export type PolicyType =
   | 'executive_order'
   | 'agency_rule'
   | 'court_ruling'
+  | 'resolution'
+  | 'news_coverage'
   | 'other';
 
 export type PolicyStatus =
@@ -50,7 +52,8 @@ export type PolicyStatus =
   | 'effective'
   | 'vetoed'
   | 'failed'
-  | 'pending';
+  | 'pending'
+  | 'tracking';
 
 export interface LegiScanBill {
   billId: string | number;
