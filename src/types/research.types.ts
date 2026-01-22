@@ -16,6 +16,9 @@ export interface ResearchPaper {
   createdAt: Date;
   updatedAt: Date;
   project?: string;
+  pmid?: string;
+  doi?: string;
+  sourceUrl?: string;
 }
 
 export interface ResearchPaperInput {
@@ -28,6 +31,9 @@ export interface ResearchPaperInput {
   researchText?: string;
   categories?: ResearchCategory[];
   project?: string;
+  pmid?: string;
+  doi?: string;
+  sourceUrl?: string;
 }
 
 export interface AnalysisResult {

@@ -32,9 +32,20 @@ CREATE TABLE IF NOT EXISTS research_papers (
   research_text TEXT,
   categories TEXT[],
   project TEXT,
+  pmid TEXT,
+  doi TEXT,
+  source_url TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Add PubMed fields to existing tables (run if updating existing database)
+ALTER TABLE research_papers ADD COLUMN IF NOT EXISTS pmid TEXT;
+ALTER TABLE research_papers ADD COLUMN IF NOT EXISTS doi TEXT;
+ALTER TABLE research_papers ADD COLUMN IF NOT EXISTS source_url TEXT;
+
+-- Create index for PMID lookups
+CREATE INDEX IF NOT EXISTS idx_research_papers_pmid ON research_papers(pmid);
 
 -- Policy-Research Connections table
 CREATE TABLE IF NOT EXISTS policy_research_connections (

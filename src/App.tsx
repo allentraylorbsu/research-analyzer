@@ -10,7 +10,7 @@ import {
   StatusMessage,
   ErrorBoundary
 } from './components/common'
-import { PdfUploader, CategorySelector, ResearchPaperCard } from './components/research'
+import { PdfUploader, CategorySelector, ResearchPaperCard, PubMedImporter } from './components/research'
 import { PolicyBrowser, LegiScanImporter, PolicyConnectionRating } from './components/policy'
 import { StateRankings } from './components/visualization'
 import {
@@ -21,7 +21,7 @@ import {
   useStateRankings,
   useStateFilter
 } from './hooks'
-import { analyzeResearchPaper, AnalysisResponse } from './services/openai'
+import { analyzeResearchPaper, AnalysisResponse, suggestPolicyConnections, ConnectionSuggestion } from './services/openai'
 import type {
   ApiKeys,
   ResearchCategory,
@@ -44,7 +44,7 @@ function App() {
   } = useApiKeys()
 
   const { policies, filteredPolicies, filters: policyFilters, setFilters: setPolicyFilters, bulkCreatePolicies } = usePolicies()
-  const { papers, createPaper } = useResearchPapers()
+  const { papers, createPaper, deletePaper } = useResearchPapers()
   const { createConnection } = useConnections()
   const { sortedRankings, isLoading: isLoadingRankings, calculateRankings, useMockData } = useStateRankings()
   const { selectedState, setSelectedState } = useStateFilter()
@@ -67,6 +67,10 @@ function App() {
   })
   const [connectionType, setConnectionType] = useState<ConnectionType>('NEUTRAL')
   const [importError, setImportError] = useState<string | null>(null)
+  const [paperSearchQuery, setPaperSearchQuery] = useState('')
+  const [connectionSuggestions, setConnectionSuggestions] = useState<ConnectionSuggestion[]>([])
+  const [isFindingConnections, setIsFindingConnections] = useState(false)
+  const [suggestionError, setSuggestionError] = useState<string | null>(null)
 
   // API Key form state
   const [openaiKey, setOpenaiKey] = useState(import.meta.env.VITE_OPENAI_API_KEY || '')
@@ -164,7 +168,60 @@ function App() {
 
     setSelectedPaper(null)
     setSelectedPolicy(null)
+    setConnectionSuggestions([])
   }, [selectedPaper, selectedPolicy, connectionType, connectionRating, createConnection])
+
+  const handleFindConnections = useCallback(async () => {
+    if (!selectedPaper || !apiKeys?.openaiKey || policies.length === 0) return
+
+    setIsFindingConnections(true)
+    setSuggestionError(null)
+    setConnectionSuggestions([])
+
+    try {
+      const suggestions = await suggestPolicyConnections(
+        apiKeys.openaiKey,
+        selectedPaper,
+        policies,
+        5
+      )
+      setConnectionSuggestions(suggestions)
+
+      if (suggestions.length === 0) {
+        setSuggestionError('No matching policies found. Try adding more policies or adjusting the research categories.')
+      }
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to find connections'
+      setSuggestionError(message)
+    } finally {
+      setIsFindingConnections(false)
+    }
+  }, [selectedPaper, apiKeys, policies])
+
+  const handleApplySuggestion = useCallback((suggestion: ConnectionSuggestion) => {
+    const policy = policies.find(p => p.policyId === suggestion.policyId)
+    if (policy) {
+      setSelectedPolicy(policy)
+      setConnectionType(suggestion.connectionType)
+      setConnectionRating({
+        strengthScore: suggestion.suggestedStrength,
+        evidenceQuality: suggestion.suggestedEvidenceQuality,
+        workforceRelevance: 5
+      })
+    }
+  }, [policies])
+
+  const handlePubMedImport = useCallback(async (papersToImport: Parameters<typeof createPaper>[0][]) => {
+    // Import papers sequentially to avoid overwhelming the database
+    for (const paper of papersToImport) {
+      await createPaper(paper)
+    }
+  }, [createPaper])
+
+  // Get list of already imported PMIDs to prevent duplicates
+  const existingPmids = papers
+    .filter(p => p.pmid)
+    .map(p => p.pmid as string)
 
   return (
     <ErrorBoundary>
@@ -451,6 +508,26 @@ function App() {
             </div>
           </CollapsibleSection>
 
+          {/* Section 2.5: PubMed Research Search */}
+          <CollapsibleSection
+            title="PubMed Research Search"
+            badge={papers.filter(p => p.pmid).length > 0 ? `${papers.filter(p => p.pmid).length} imported` : undefined}
+          >
+            <div className="space-y-4">
+              <div className="bg-gradient-to-r from-green-50 to-teal-50 p-4 rounded-lg border border-green-100">
+                <h4 className="font-medium text-green-900 mb-1">Search PubMed for Workforce Research</h4>
+                <p className="text-sm text-green-700">
+                  Find and import peer-reviewed research papers on physician workforce, migration, retention, and healthcare policy.
+                  Imported papers can then be connected to policies using AI-powered suggestions.
+                </p>
+              </div>
+              <PubMedImporter
+                onImport={handlePubMedImport}
+                existingPmids={existingPmids}
+              />
+            </div>
+          </CollapsibleSection>
+
           {/* Section 3: Policy Import */}
           <CollapsibleSection
             title="Policy Import (LegiScan)"
@@ -490,23 +567,84 @@ function App() {
               <div className="grid md:grid-cols-2 gap-6">
                 <div>
                   <h4 className="font-medium mb-2">Select Research Paper</h4>
+                  <input
+                    type="text"
+                    placeholder="Search papers by title or author..."
+                    value={paperSearchQuery}
+                    onChange={(e) => setPaperSearchQuery(e.target.value)}
+                    className="w-full px-3 py-2 mb-3 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  />
                   <div className="space-y-2 max-h-64 overflow-y-auto">
                     {papers.length === 0 ? (
                       <p className="text-gray-500 text-sm py-4">
                         No saved papers yet. Upload and save a paper in the Research Paper Analysis section above.
                       </p>
                     ) : (
-                      papers.slice(0, 10).map(paper => (
-                        <ResearchPaperCard
-                          key={paper.id}
-                          paper={paper}
-                          showActions={false}
-                          isSelected={selectedPaper?.id === paper.id}
-                          onSelect={() => setSelectedPaper(paper)}
-                        />
-                      ))
+                      (() => {
+                        const filteredPapers = papers.filter(paper => {
+                          if (!paperSearchQuery.trim()) return true
+                          const query = paperSearchQuery.toLowerCase()
+                          return (
+                            paper.title.toLowerCase().includes(query) ||
+                            paper.firstAuthor?.toLowerCase().includes(query) ||
+                            paper.allAuthors?.toLowerCase().includes(query)
+                          )
+                        })
+
+                        if (filteredPapers.length === 0) {
+                          return (
+                            <p className="text-gray-500 text-sm py-4">
+                              No papers match "{paperSearchQuery}"
+                            </p>
+                          )
+                        }
+
+                        return filteredPapers.slice(0, 20).map(paper => (
+                          <ResearchPaperCard
+                            key={paper.id}
+                            paper={paper}
+                            showActions={true}
+                            isSelected={selectedPaper?.id === paper.id}
+                            onSelect={() => {
+                              setSelectedPaper(paper)
+                              setConnectionSuggestions([])
+                              setSuggestionError(null)
+                            }}
+                            onDelete={async (p) => {
+                              if (confirm(`Delete "${p.title}"?`)) {
+                                await deletePaper(p.id)
+                                if (selectedPaper?.id === p.id) {
+                                  setSelectedPaper(null)
+                                }
+                              }
+                            }}
+                          />
+                        ))
+                      })()
                     )}
                   </div>
+                  {papers.length > 0 && (
+                    <p className="text-xs text-gray-500 mt-2">
+                      {paperSearchQuery ? `Showing filtered results` : `${papers.length} paper${papers.length !== 1 ? 's' : ''} total`}
+                    </p>
+                  )}
+
+                  {/* Find Connections Button */}
+                  {selectedPaper && policies.length > 0 && (
+                    <div className="mt-4 pt-4 border-t">
+                      <Button
+                        onClick={handleFindConnections}
+                        isLoading={isFindingConnections}
+                        disabled={!apiKeys?.openaiKey || isFindingConnections}
+                        size="small"
+                      >
+                        {isFindingConnections ? 'Finding...' : '✨ Find Matching Policies'}
+                      </Button>
+                      {!apiKeys?.openaiKey && (
+                        <p className="text-xs text-amber-600 mt-1">OpenAI API key required</p>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <h4 className="font-medium mb-2">Select Policy</h4>
@@ -524,10 +662,87 @@ function App() {
                       </Button>
                     </div>
                   ) : (
-                    <p className="text-gray-500">Select a policy from the Policy Browser above</p>
+                    <p className="text-gray-500">Select a policy from the Policy Browser above, or use "Find Matching Policies"</p>
                   )}
                 </div>
               </div>
+
+              {/* AI Suggestions */}
+              {suggestionError && (
+                <StatusMessage
+                  type="error"
+                  message={suggestionError}
+                  onDismiss={() => setSuggestionError(null)}
+                />
+              )}
+
+              {connectionSuggestions.length > 0 && (
+                <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-lg p-5 border border-purple-100">
+                  <h4 className="font-semibold text-purple-900 mb-3 flex items-center gap-2">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                    </svg>
+                    AI-Suggested Connections
+                  </h4>
+                  <p className="text-sm text-purple-700 mb-4">
+                    Based on "{selectedPaper?.title}", these policies may be relevant:
+                  </p>
+                  <div className="space-y-3">
+                    {connectionSuggestions.map((suggestion, idx) => (
+                      <div
+                        key={suggestion.policyId}
+                        className="bg-white rounded-lg p-4 border border-purple-200 hover:border-purple-400 transition-colors"
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-sm font-medium text-purple-600">#{idx + 1}</span>
+                              <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${
+                                suggestion.connectionType === 'POSITIVE' ? 'bg-green-100 text-green-700' :
+                                suggestion.connectionType === 'NEGATIVE' ? 'bg-red-100 text-red-700' :
+                                suggestion.connectionType === 'MIXED' ? 'bg-yellow-100 text-yellow-700' :
+                                'bg-gray-100 text-gray-700'
+                              }`}>
+                                {suggestion.connectionType}
+                              </span>
+                              <span className="text-xs text-gray-500">
+                                Confidence: {suggestion.confidence}/10
+                              </span>
+                            </div>
+                            <h5 className="font-medium text-gray-900 truncate" title={suggestion.policyTitle}>
+                              {suggestion.policyTitle}
+                            </h5>
+                            <p className="text-sm text-gray-600 mt-1">{suggestion.reasoning}</p>
+                            {suggestion.keyOverlap.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-2">
+                                {suggestion.keyOverlap.map(keyword => (
+                                  <span key={keyword} className="px-2 py-0.5 text-xs bg-purple-100 text-purple-700 rounded">
+                                    {keyword}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <Button
+                            size="small"
+                            onClick={() => handleApplySuggestion(suggestion)}
+                          >
+                            Use
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="small"
+                    onClick={() => setConnectionSuggestions([])}
+                    className="mt-3"
+                  >
+                    Clear Suggestions
+                  </Button>
+                </div>
+              )}
 
               {selectedPaper && selectedPolicy && (
                 <>

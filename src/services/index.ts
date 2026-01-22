@@ -26,9 +26,20 @@ export {
 export {
   testConnection as testOpenAIConnection,
   analyzeResearchPaper,
-  analyzeConnection
+  analyzeConnection,
+  suggestPolicyConnections
 } from './openai'
-export type { AnalysisRequest, AnalysisResponse } from './openai'
+export type { AnalysisRequest, AnalysisResponse, ConnectionSuggestion } from './openai'
+
+// PubMed service
+export {
+  searchPubMed,
+  fetchPubMedDetails,
+  fetchPubMedArticle,
+  buildWorkforceSearchQuery,
+  SUGGESTED_SEARCHES
+} from './pubmed'
+export type { PubMedSearchResult, PubMedSearchResponse } from './pubmed'
 
 // PDF processor service
 export {

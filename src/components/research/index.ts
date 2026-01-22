@@ -13,3 +13,6 @@ export type { ResearchPaperCardProps } from './ResearchPaperCard'
 
 export { DuplicateDetector } from './DuplicateDetector'
 export type { DuplicateDetectorProps } from './DuplicateDetector'
+
+export { PubMedImporter } from './PubMedImporter'
+export type { PubMedImporterProps } from './PubMedImporter'

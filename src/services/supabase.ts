@@ -472,7 +472,10 @@ function mapPaperFromDb(row: any): ResearchPaper {
     categories: row.categories || [],
     createdAt: new Date(row.created_at),
     updatedAt: new Date(row.updated_at),
-    project: row.project
+    project: row.project,
+    pmid: row.pmid,
+    doi: row.doi,
+    sourceUrl: row.source_url
   }
 }
 
@@ -491,7 +494,10 @@ function mapPaperToDb(paper: ResearchPaperInput): Record<string, unknown> {
     abstract: paper.abstract,
     research_text: paper.researchText,
     categories: paper.categories,
-    project: paper.project
+    project: paper.project,
+    pmid: paper.pmid,
+    doi: paper.doi,
+    source_url: paper.sourceUrl
   }
 }
 

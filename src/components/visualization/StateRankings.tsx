@@ -120,6 +120,24 @@ export function StateRankings({
               }
             </div>
           </div>
+
+          {/* Grade Scale Legend */}
+          <div className="mt-4 pt-4 border-t border-blue-200">
+            <h4 className="text-sm font-medium text-gray-700 mb-2 text-center">Grade Scale</h4>
+            <div className="flex flex-wrap justify-center gap-2 text-xs">
+              <GradeScaleItem grade="A+" range="90-100" color="#28a745" />
+              <GradeScaleItem grade="A" range="85-89" color="#28a745" />
+              <GradeScaleItem grade="A-" range="80-84" color="#28a745" />
+              <GradeScaleItem grade="B+" range="75-79" color="#ffc107" />
+              <GradeScaleItem grade="B" range="70-74" color="#ffc107" />
+              <GradeScaleItem grade="B-" range="65-69" color="#ffc107" />
+              <GradeScaleItem grade="C+" range="60-64" color="#fd7e14" />
+              <GradeScaleItem grade="C" range="55-59" color="#fd7e14" />
+              <GradeScaleItem grade="C-" range="50-54" color="#fd7e14" />
+              <GradeScaleItem grade="D" range="40-49" color="#dc3545" />
+              <GradeScaleItem grade="F" range="0-39" color="#dc3545" />
+            </div>
+          </div>
         </div>
       )}
 
@@ -226,12 +244,12 @@ function StateRankingRow({
           </div>
         </div>
 
-        {/* Score */}
-        <div className="text-right">
+        {/* Score & Grade */}
+        <div className="text-right flex items-center gap-2">
+          <GradeBadge grade={ranking.grade.letter} color={ranking.grade.color} />
           <div className="text-2xl font-bold" style={{ color: ranking.grade.color }}>
             {ranking.workforceImpactScore}
           </div>
-          <GradeBadge grade={ranking.grade.letter} color={ranking.grade.color} />
         </div>
 
         {/* Expand Button */}
@@ -314,6 +332,15 @@ function MetricCard({ label, value }: { label: string; value: string }) {
     <div className="text-center">
       <div className="text-lg font-semibold text-gray-900">{value}</div>
       <div className="text-xs text-gray-500">{label}</div>
+    </div>
+  )
+}
+
+function GradeScaleItem({ grade, range, color }: { grade: string; range: string; color: string }) {
+  return (
+    <div className="flex items-center gap-1 px-2 py-1 bg-white rounded border border-gray-200">
+      <span className="font-bold" style={{ color }}>{grade}</span>
+      <span className="text-gray-500">{range}</span>
     </div>
   )
 }
