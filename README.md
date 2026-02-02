@@ -5,7 +5,10 @@
 [![Vite](https://img.shields.io/badge/Vite-7-646CFF?logo=vite)](https://vitejs.dev/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A TypeScript React application for analyzing healthcare workforce research and connecting findings to policy outcomes. Built for researchers, policymakers, and healthcare analysts studying physician workforce issues.
+An AI-powered tool that automates research analysis—upload PDFs, extract findings via LLM, and synthesize evidence across studies. Built to explore how state health policies impact the physician workforce
+
+Why I Built This?
+After the Dobbs decision, I became curious about how state health policies were affecting physician career decisions. Manually analyzing hundreds of research papers would take months. So I built a tool to automate it—upload PDFs, extract key findings using OpenAI's API, and connect research to real-world policy outcomes.
 
 ## Features
 
