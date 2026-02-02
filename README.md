@@ -16,6 +16,8 @@ Evidence quality scoring (strong/moderate/weak)
 Policy-research connection mapping
 State workforce rankings with multi-dimensional scoring
 
+https://github.com/user-attachments/assets/ea05ec39-022d-4228-ab98-65ddf3477cdc
+
 - **PDF Research Paper Analysis** - Upload PDFs and extract text with AI-powered analysis
 - **LegiScan Integration** - Import real legislation from all 50 US states
 - **Policy-Research Connections** - Create evidence-based links with strength ratings
