@@ -11,6 +11,10 @@ Why I Built This?
 After the Dobbs decision, I became curious about how state health policies were affecting physician career decisions. Manually analyzing hundreds of research papers would take months. So I built a tool to automate it—upload PDFs, extract key findings using OpenAI's API, and connect research to real-world policy outcomes.
 
 ## Features
+AI-powered PDF analysis using OpenAI API
+Evidence quality scoring (strong/moderate/weak)
+Policy-research connection mapping
+State workforce rankings with multi-dimensional scoring
 
 - **PDF Research Paper Analysis** - Upload PDFs and extract text with AI-powered analysis
 - **LegiScan Integration** - Import real legislation from all 50 US states
