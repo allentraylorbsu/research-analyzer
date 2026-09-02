@@ -7,13 +7,15 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import type {
   StateRanking,
   StateRankingFilters,
-  StateBaselineWorkforce
+  StateBaselineWorkforce,
+  ScoringWeights
 } from '@/types'
 import {
   calculateStateRankings,
   sortStateRankings,
   generateMockStateRankings,
-  getRankingSummary
+  getRankingSummary,
+  DEFAULT_SCORING_WEIGHTS
 } from '@/services/stateRankingCalculator'
 import { connectionService, policyService, baselineWorkforceService, isSupabaseConfigured } from '@/services/supabase'
 
@@ -24,6 +26,8 @@ interface UseStateRankingsReturn {
   error: string | null
   filters: StateRankingFilters
   setFilters: (filters: StateRankingFilters) => void
+  scoringWeights: ScoringWeights
+  setScoringWeights: (weights: ScoringWeights) => void
   calculateRankings: (project?: string) => Promise<void>
   getRankingForState: (state: string) => StateRanking | undefined
   getSummary: () => ReturnType<typeof getRankingSummary>
@@ -42,6 +46,14 @@ export function useStateRankings(project?: string): UseStateRankingsReturn {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [filters, setFilters] = useState<StateRankingFilters>(defaultFilters)
+  const [scoringWeights, setScoringWeights] = useState<ScoringWeights>(DEFAULT_SCORING_WEIGHTS)
+
+  // Store raw data so we can recalculate when weights change
+  const [rawData, setRawData] = useState<{
+    connections: Parameters<typeof calculateStateRankings>[0]
+    policies: Parameters<typeof calculateStateRankings>[1]
+    baselineData: StateBaselineWorkforce[]
+  } | null>(null)
 
   const calculateRankings = useCallback(async (projectName?: string) => {
     if (!isSupabaseConfigured()) {
@@ -60,7 +72,10 @@ export function useStateRankings(project?: string): UseStateRankingsReturn {
         baselineWorkforceService.getAll().catch(() => [] as StateBaselineWorkforce[])
       ])
 
-      const calculated = calculateStateRankings(connections, policies, baselineData)
+      // Store raw data for recalculation when weights change
+      setRawData({ connections, policies, baselineData })
+
+      const calculated = calculateStateRankings(connections, policies, baselineData, scoringWeights)
       setRankings(calculated)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to calculate rankings'
@@ -69,13 +84,28 @@ export function useStateRankings(project?: string): UseStateRankingsReturn {
     } finally {
       setIsLoading(false)
     }
-  }, [project])
+  }, [project, scoringWeights])
+
+  // Recalculate when weights change and we have raw data
+  useEffect(() => {
+    if (rawData) {
+      const recalculated = calculateStateRankings(
+        rawData.connections,
+        rawData.policies,
+        rawData.baselineData,
+        scoringWeights
+      )
+      setRankings(recalculated)
+    }
+  }, [scoringWeights, rawData])
 
   useEffect(() => {
     if (isSupabaseConfigured()) {
       calculateRankings()
     }
-  }, [calculateRankings])
+  // Only fetch on mount, not when scoringWeights change (recalc handles that)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project])
 
   const getRankingForState = useCallback((state: string): StateRanking | undefined => {
     return rankings.find(r =>
@@ -95,6 +125,7 @@ export function useStateRankings(project?: string): UseStateRankingsReturn {
     ]
     const mockRankings = generateMockStateRankings(mockStates)
     setRankings(mockRankings)
+    setRawData(null) // Mock data doesn't have raw data for recalculation
   }, [])
 
   // Apply filters and sorting
@@ -127,6 +158,8 @@ export function useStateRankings(project?: string): UseStateRankingsReturn {
     error,
     filters,
     setFilters,
+    scoringWeights,
+    setScoringWeights,
     calculateRankings,
     getRankingForState,
     getSummary,

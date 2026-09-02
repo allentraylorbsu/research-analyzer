@@ -58,7 +58,8 @@ export {
   calculateStateRankings,
   sortStateRankings,
   generateMockStateRankings,
-  getRankingSummary
+  getRankingSummary,
+  DEFAULT_SCORING_WEIGHTS
 } from './stateRankingCalculator'
 
 // Open States API service

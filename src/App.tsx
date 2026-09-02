@@ -12,7 +12,7 @@ import {
 } from './components/common'
 import { PdfUploader, CategorySelector, ResearchPaperCard, PubMedImporter } from './components/research'
 import { PolicyBrowser, LegiScanImporter, PolicyConnectionRating, PolicyDiscovery } from './components/policy'
-import { StateRankings } from './components/visualization'
+import { StateRankings, ScoringJustificationPanel } from './components/visualization'
 import {
   useApiKeys,
   usePolicies,
@@ -29,7 +29,8 @@ import type {
   ConnectionType,
   PolicyInput,
   ResearchPaper,
-  Policy
+  Policy,
+  ScoringJustification
 } from './types'
 import './App.css'
 
@@ -44,9 +45,9 @@ function App() {
   } = useApiKeys()
 
   const { policies, filteredPolicies, filters: policyFilters, setFilters: setPolicyFilters, bulkCreatePolicies } = usePolicies()
-  const { papers, createPaper, deletePaper } = useResearchPapers()
+  const { papers, createPaper, updatePaper, deletePaper } = useResearchPapers()
   const { createConnection } = useConnections()
-  const { sortedRankings, isLoading: isLoadingRankings, calculateRankings, useMockData } = useStateRankings()
+  const { sortedRankings, isLoading: isLoadingRankings, calculateRankings, useMockData, scoringWeights, setScoringWeights } = useStateRankings()
   const { selectedState, setSelectedState } = useStateFilter()
 
   // Local state
@@ -57,6 +58,7 @@ function App() {
   const [isAnalyzing, setIsAnalyzing] = useState(false)
   const [isSavingPaper, setIsSavingPaper] = useState(false)
   const [paperSaved, setPaperSaved] = useState(false)
+  const [savedPaperId, setSavedPaperId] = useState<string | null>(null)
   const [analysisResult, setAnalysisResult] = useState<AnalysisResponse | null>(null)
   const [selectedPaper, setSelectedPaper] = useState<ResearchPaper | null>(null)
   const [selectedPolicy, setSelectedPolicy] = useState<Policy | null>(null)
@@ -71,6 +73,7 @@ function App() {
   const [connectionSuggestions, setConnectionSuggestions] = useState<ConnectionSuggestion[]>([])
   const [isFindingConnections, setIsFindingConnections] = useState(false)
   const [suggestionError, setSuggestionError] = useState<string | null>(null)
+  const [scoringJustifications, setScoringJustifications] = useState<ScoringJustification[]>([])
 
   // API Key form state
   const [openaiKey, setOpenaiKey] = useState(import.meta.env.VITE_OPENAI_API_KEY || '')
@@ -97,7 +100,9 @@ function App() {
     setUploadedTitle(result.title)
     setActiveSection('research')
     setPaperSaved(false)
+    setSavedPaperId(null)
     setAnalysisResult(null)
+    setSelectedCategories([])
   }, [])
 
   const handleAnalyze = useCallback(async () => {
@@ -129,18 +134,31 @@ function App() {
 
     setIsSavingPaper(true)
     try {
-      await createPaper({
+      const saved = await createPaper({
         title: uploadedTitle,
         researchText: uploadedText,
         categories: selectedCategories
       })
       setPaperSaved(true)
+      setSavedPaperId(saved.id)
     } catch (err) {
       console.error('Save error:', err)
     } finally {
       setIsSavingPaper(false)
     }
   }, [uploadedText, uploadedTitle, selectedCategories, createPaper])
+
+  const handleCategoryChange = useCallback(async (categories: ResearchCategory[]) => {
+    setSelectedCategories(categories)
+    // If paper is already saved, update it with the new categories
+    if (savedPaperId) {
+      try {
+        await updatePaper(savedPaperId, { categories })
+      } catch (err) {
+        console.error('Failed to update categories:', err)
+      }
+    }
+  }, [savedPaperId, updatePaper])
 
   const handleImportPolicies = useCallback(async (newPolicies: PolicyInput[]) => {
     setImportError(null)
@@ -216,6 +234,14 @@ function App() {
       })
     }
   }, [policies])
+
+  const handleAddJustification = useCallback((justification: ScoringJustification) => {
+    setScoringJustifications(prev => [...prev, justification])
+  }, [])
+
+  const handleRemoveJustification = useCallback((index: number) => {
+    setScoringJustifications(prev => prev.filter((_, i) => i !== index))
+  }, [])
 
   const handlePubMedImport = useCallback(async (papersToImport: Parameters<typeof createPaper>[0][]) => {
     // Import papers sequentially to avoid overwhelming the database
@@ -384,7 +410,7 @@ function App() {
 
                   <CategorySelector
                     selected={selectedCategories}
-                    onChange={setSelectedCategories}
+                    onChange={handleCategoryChange}
                     maxSelections={5}
                   />
 
@@ -900,8 +926,24 @@ function App() {
                 isLoading={isLoadingRankings}
                 onStateSelect={setSelectedState}
                 selectedState={selectedState || undefined}
+                scoringWeights={scoringWeights}
+                onWeightsChange={setScoringWeights}
+                scoringJustifications={scoringJustifications}
               />
             </div>
+          </CollapsibleSection>
+
+          {/* Section 7: Research Justifications */}
+          <CollapsibleSection
+            title="Scoring Justifications"
+            badge={scoringJustifications.length > 0 ? scoringJustifications.length : undefined}
+          >
+            <ScoringJustificationPanel
+              justifications={scoringJustifications}
+              papers={papers}
+              onAddJustification={handleAddJustification}
+              onRemoveJustification={handleRemoveJustification}
+            />
           </CollapsibleSection>
         </main>
 

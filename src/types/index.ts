@@ -63,6 +63,9 @@ export type {
   StateAbbreviation,
   StateName,
   RankingSortBy,
-  StateRankingFilters
+  StateRankingFilters,
+  ScoringFactor,
+  ScoringWeights,
+  ScoringJustification
 } from './state.types';
 export { US_STATES, STATE_ABBREVIATIONS, US_STATES_LIST } from './state.types';

@@ -44,6 +44,10 @@ export interface StateRanking {
   shortageAreaBonus?: number;
   averagePopulationAffected?: number;
 
+  // Medicaid reimbursement metrics (optional)
+  medicaidReimbursementRatio?: number;
+  medicaidReimbursementScore?: number;
+
   // Confidence metrics (optional)
   confidenceLevel?: number;
   uncertaintyRange?: number;
@@ -132,4 +136,43 @@ export interface StateRankingFilters {
   minScore?: number;
   maxScore?: number;
   hasData?: boolean;
+}
+
+/**
+ * Scoring factor that can be weighted and justified with research
+ */
+export interface ScoringFactor {
+  id: string;
+  name: string;
+  description: string;
+  weight: number; // 0.0 to 1.0
+  enabled: boolean;
+  dataSource: string;
+  /** Research paper IDs that justify this factor's inclusion/weight */
+  justificationPaperIds: string[];
+  /** Brief rationale for the weight */
+  rationale?: string;
+}
+
+/**
+ * Default scoring weights configuration
+ */
+export interface ScoringWeights {
+  policyConnections: number;
+  evidenceQuality: number;
+  populationImpact: number;
+  medicaidReimbursement: number;
+  baseline: number;
+}
+
+/**
+ * Scoring factor justification linking research to a weight
+ */
+export interface ScoringJustification {
+  factorId: string;
+  paperId: string;
+  paperTitle: string;
+  relevantFinding: string;
+  suggestedWeight?: number;
+  addedAt: Date;
 }

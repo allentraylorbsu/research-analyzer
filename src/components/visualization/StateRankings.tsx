@@ -1,11 +1,13 @@
 /**
  * StateRankings Component
  * Display state workforce impact rankings with grades
+ * Includes adjustable scoring weights and Medicaid reimbursement display
  */
 
 import { useState, useCallback, useMemo } from 'react'
 import { Button, LoadingSpinner } from '../common'
-import type { StateRanking, RankingSortBy } from '@/types'
+import type { StateRanking, RankingSortBy, ScoringWeights, ScoringJustification } from '@/types'
+import { DEFAULT_SCORING_WEIGHTS } from '@/services/stateRankingCalculator'
 
 export interface StateRankingsProps {
   rankings: StateRanking[]
@@ -13,6 +15,9 @@ export interface StateRankingsProps {
   onRefresh?: () => void
   onStateSelect?: (state: string) => void
   selectedState?: string
+  scoringWeights?: ScoringWeights
+  onWeightsChange?: (weights: ScoringWeights) => void
+  scoringJustifications?: ScoringJustification[]
 }
 
 export function StateRankings({
@@ -20,10 +25,14 @@ export function StateRankings({
   isLoading = false,
   onRefresh,
   onStateSelect,
-  selectedState
+  selectedState,
+  scoringWeights = DEFAULT_SCORING_WEIGHTS,
+  onWeightsChange,
+  scoringJustifications = []
 }: StateRankingsProps) {
   const [sortBy, setSortBy] = useState<RankingSortBy>('score')
   const [expandedState, setExpandedState] = useState<string | null>(null)
+  const [showWeights, setShowWeights] = useState(false)
 
   const sortedRankings = useMemo(() => {
     const sorted = [...rankings]
@@ -62,6 +71,20 @@ export function StateRankings({
     setExpandedState(prev => prev === state ? null : state)
   }, [])
 
+  const totalWeight = useMemo(() => {
+    return (Object.values(scoringWeights) as number[]).reduce((sum, w) => sum + w, 0)
+  }, [scoringWeights])
+
+  const handleWeightChange = useCallback((key: keyof ScoringWeights, value: number) => {
+    if (!onWeightsChange) return
+    onWeightsChange({ ...scoringWeights, [key]: value })
+  }, [scoringWeights, onWeightsChange])
+
+  const handleResetWeights = useCallback(() => {
+    if (!onWeightsChange) return
+    onWeightsChange({ ...DEFAULT_SCORING_WEIGHTS })
+  }, [onWeightsChange])
+
   if (isLoading) {
     return (
       <div className="flex justify-center py-12">
@@ -83,6 +106,87 @@ export function StateRankings({
 
   return (
     <div className="space-y-6">
+      {/* Scoring Weights Controls */}
+      {onWeightsChange && (
+        <div className="border border-gray-200 rounded-lg overflow-hidden">
+          <button
+            onClick={() => setShowWeights(!showWeights)}
+            className="w-full flex items-center justify-between p-4 bg-white hover:bg-gray-50 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4" />
+              </svg>
+              <span className="font-medium text-gray-700">Scoring Weights</span>
+              {Math.abs(totalWeight - 1.0) > 0.01 && (
+                <span className="text-xs px-2 py-0.5 bg-red-100 text-red-700 rounded-full">
+                  Total: {(totalWeight * 100).toFixed(0)}% (should be 100%)
+                </span>
+              )}
+            </div>
+            <svg
+              className={`w-5 h-5 text-gray-400 transition-transform ${showWeights ? 'rotate-180' : ''}`}
+              fill="none" stroke="currentColor" viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+
+          {showWeights && (
+            <div className="p-4 bg-gray-50 border-t space-y-4">
+              <p className="text-xs text-gray-500">
+                Adjust how much each factor contributes to the final score. Weights should total 100%.
+              </p>
+
+              <WeightSlider
+                label="Baseline Workforce Data"
+                description="HRSA/KFF baseline workforce metrics"
+                value={scoringWeights.baseline}
+                onChange={(v) => handleWeightChange('baseline', v)}
+                justifications={scoringJustifications.filter(j => j.factorId === 'baseline')}
+              />
+              <WeightSlider
+                label="Policy Connections"
+                description="Strength and direction of policy-research connections"
+                value={scoringWeights.policyConnections}
+                onChange={(v) => handleWeightChange('policyConnections', v)}
+                justifications={scoringJustifications.filter(j => j.factorId === 'policyConnections')}
+              />
+              <WeightSlider
+                label="Medicaid Reimbursement"
+                description="KFF Medicaid-to-Medicare fee index (2024)"
+                value={scoringWeights.medicaidReimbursement}
+                onChange={(v) => handleWeightChange('medicaidReimbursement', v)}
+                justifications={scoringJustifications.filter(j => j.factorId === 'medicaidReimbursement')}
+              />
+              <WeightSlider
+                label="Evidence Quality"
+                description="Quality and strength of supporting research evidence"
+                value={scoringWeights.evidenceQuality}
+                onChange={(v) => handleWeightChange('evidenceQuality', v)}
+                justifications={scoringJustifications.filter(j => j.factorId === 'evidenceQuality')}
+              />
+              <WeightSlider
+                label="Population Impact"
+                description="Estimated population affected by policies"
+                value={scoringWeights.populationImpact}
+                onChange={(v) => handleWeightChange('populationImpact', v)}
+                justifications={scoringJustifications.filter(j => j.factorId === 'populationImpact')}
+              />
+
+              <div className="flex items-center justify-between pt-2 border-t">
+                <div className={`text-sm font-medium ${Math.abs(totalWeight - 1.0) > 0.01 ? 'text-red-600' : 'text-green-600'}`}>
+                  Total: {(totalWeight * 100).toFixed(0)}%
+                </div>
+                <Button size="small" variant="secondary" onClick={handleResetWeights}>
+                  Reset to Defaults
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Summary */}
       {summary && (
         <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6">
@@ -181,6 +285,57 @@ export function StateRankings({
   )
 }
 
+// ── Weight Slider Component ──────────────────────────────────────────
+
+interface WeightSliderProps {
+  label: string
+  description: string
+  value: number
+  onChange: (value: number) => void
+  justifications?: ScoringJustification[]
+}
+
+function WeightSlider({ label, description, value, onChange, justifications = [] }: WeightSliderProps) {
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <div>
+          <span className="text-sm font-medium text-gray-700">{label}</span>
+          <span className="text-xs text-gray-400 ml-2">{description}</span>
+        </div>
+        <span className="text-sm font-mono font-bold text-gray-900 w-12 text-right">
+          {Math.round(value * 100)}%
+        </span>
+      </div>
+      <input
+        type="range"
+        min={0}
+        max={100}
+        step={5}
+        value={Math.round(value * 100)}
+        onChange={(e) => onChange(parseInt(e.target.value) / 100)}
+        className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
+      />
+      {justifications.length > 0 && (
+        <div className="mt-1 space-y-1">
+          {justifications.map((j, i) => (
+            <div key={i} className="flex items-start gap-1 text-xs text-blue-600">
+              <svg className="w-3 h-3 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
+              <span>
+                <strong>{j.paperTitle}:</strong> {j.relevantFinding}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── State Ranking Row ────────────────────────────────────────────────
+
 interface StateRankingRowProps {
   ranking: StateRanking
   rank?: number
@@ -270,7 +425,8 @@ function StateRankingRow({
 
       {/* Expanded Details */}
       {isExpanded && (
-        <div className="p-4 bg-gray-50 border-t">
+        <div className="p-4 bg-gray-50 border-t space-y-4">
+          {/* Core Metrics */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <MetricCard
               label="Positive Rate"
@@ -290,8 +446,92 @@ function StateRankingRow({
             />
           </div>
 
+          {/* Medicaid Reimbursement */}
+          {ranking.medicaidReimbursementScore !== undefined && (
+            <div className="bg-white rounded-lg p-3 border border-gray-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-sm font-medium text-gray-700">Medicaid Reimbursement</h4>
+                  <p className="text-xs text-gray-400 mt-0.5">KFF Medicaid-to-Medicare Fee Index (2024)</p>
+                </div>
+                <div className="text-right">
+                  <div className="text-lg font-bold" style={{ color: getReimbursementColor(ranking.medicaidReimbursementRatio) }}>
+                    {ranking.medicaidReimbursementRatio != null
+                      ? `${ranking.medicaidReimbursementRatio.toFixed(2)}`
+                      : 'N/A'}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    Score: {ranking.medicaidReimbursementScore}/100
+                  </div>
+                </div>
+              </div>
+              {ranking.medicaidReimbursementRatio != null && (
+                <div className="mt-2">
+                  <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{
+                        width: `${Math.min(ranking.medicaidReimbursementRatio * 100, 100)}%`,
+                        backgroundColor: getReimbursementColor(ranking.medicaidReimbursementRatio)
+                      }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-xs text-gray-400 mt-1">
+                    <span>0%</span>
+                    <span className="text-gray-500 font-medium">
+                      {ranking.medicaidReimbursementRatio >= 1.0
+                        ? 'At or above Medicare parity'
+                        : ranking.medicaidReimbursementRatio >= 0.80
+                          ? 'Near CMS target (80%)'
+                          : ranking.medicaidReimbursementRatio >= 0.65
+                            ? 'Below CMS target'
+                            : 'Low reimbursement'}
+                    </span>
+                    <span>100%+</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Score Breakdown */}
+          {ranking.totalConnections > 0 && (
+            <div className="bg-white rounded-lg p-3 border border-gray-200">
+              <h4 className="text-sm font-medium text-gray-700 mb-2">Score Breakdown</h4>
+              <div className="space-y-1.5">
+                <ScoreBreakdownRow
+                  label="Baseline Workforce"
+                  score={ranking.baselineWorkforceScore}
+                />
+                <ScoreBreakdownRow
+                  label="Policy Impact"
+                  score={ranking.policyImpactScore}
+                />
+                {ranking.medicaidReimbursementScore !== undefined && (
+                  <ScoreBreakdownRow
+                    label="Medicaid Reimbursement"
+                    score={ranking.medicaidReimbursementScore}
+                  />
+                )}
+                {ranking.evidenceStrengthScore !== undefined && (
+                  <ScoreBreakdownRow
+                    label="Evidence Strength"
+                    score={ranking.evidenceStrengthScore}
+                  />
+                )}
+                {ranking.populationImpactScore !== undefined && (
+                  <ScoreBreakdownRow
+                    label="Population Impact"
+                    score={ranking.populationImpactScore}
+                  />
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Data Quality & Confidence */}
           {ranking.dataQualityFlag && (
-            <div className="mt-3 text-sm">
+            <div className="flex items-center gap-3 text-sm">
               <span className={`
                 px-2 py-1 rounded text-xs
                 ${ranking.dataQualityFlag === 'RELIABLE_DATA' ? 'bg-green-100 text-green-800' :
@@ -300,20 +540,45 @@ function StateRankingRow({
               `}>
                 {ranking.dataQualityFlag.replace('_', ' ')}
               </span>
-              {ranking.confidenceLevel && (
-                <span className="ml-2 text-gray-500">
+              {ranking.confidenceLevel != null && (
+                <span className="text-gray-500">
                   {ranking.confidenceLevel}% confidence
+                </span>
+              )}
+              {ranking.scoreRangeLow != null && ranking.scoreRangeHigh != null && (
+                <span className="text-gray-400 text-xs">
+                  Range: {ranking.scoreRangeLow}-{ranking.scoreRangeHigh}
                 </span>
               )}
             </div>
           )}
 
-          <p className="mt-3 text-sm text-gray-600">{ranking.grade.description}</p>
+          <p className="text-sm text-gray-600">{ranking.grade.description}</p>
         </div>
       )}
     </div>
   )
 }
+
+// ── Score Breakdown Row ──────────────────────────────────────────────
+
+function ScoreBreakdownRow({ label, score }: { label: string; score: number }) {
+  const clampedScore = Math.max(0, Math.min(score, 100))
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-xs text-gray-500 w-36 flex-shrink-0">{label}</span>
+      <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+        <div
+          className="h-full rounded-full bg-blue-400"
+          style={{ width: `${clampedScore}%` }}
+        />
+      </div>
+      <span className="text-xs font-mono text-gray-600 w-8 text-right">{Math.round(score)}</span>
+    </div>
+  )
+}
+
+// ── Helper Components ────────────────────────────────────────────────
 
 function GradeBadge({ grade, color, size = 'medium' }: { grade: string; color?: string; size?: 'small' | 'medium' }) {
   const sizeClasses = size === 'small' ? 'w-6 h-6 text-xs' : 'w-8 h-8 text-sm'
@@ -343,6 +608,16 @@ function GradeScaleItem({ grade, range, color }: { grade: string; range: string;
       <span className="text-gray-500">{range}</span>
     </div>
   )
+}
+
+// ── Utility Functions ────────────────────────────────────────────────
+
+function getReimbursementColor(ratio: number | undefined | null): string {
+  if (ratio == null) return '#6b7280'
+  if (ratio >= 1.0) return '#28a745'
+  if (ratio >= 0.80) return '#ffc107'
+  if (ratio >= 0.65) return '#fd7e14'
+  return '#dc3545'
 }
 
 function formatStateName(name: string): string {

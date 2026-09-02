@@ -8,8 +8,22 @@ import type {
   WorkforceGrade,
   StateBaselineWorkforce,
   PolicyConnection,
-  Policy
+  Policy,
+  ScoringWeights
 } from '@/types'
+import { getStateReimbursementScore, getStateReimbursementData } from '@/data/medicaidReimbursement'
+
+/**
+ * Default scoring weights
+ * These can be adjusted by the user and justified with research
+ */
+export const DEFAULT_SCORING_WEIGHTS: ScoringWeights = {
+  policyConnections: 0.30,
+  evidenceQuality: 0.15,
+  populationImpact: 0.10,
+  medicaidReimbursement: 0.15,
+  baseline: 0.30
+}
 
 /**
  * Get workforce impact grade based on score
@@ -48,7 +62,8 @@ interface StateScoreAccumulator {
 export function calculateStateRankings(
   connections: PolicyConnection[],
   policies: Policy[],
-  baselineData: StateBaselineWorkforce[] = []
+  baselineData: StateBaselineWorkforce[] = [],
+  weights: ScoringWeights = DEFAULT_SCORING_WEIGHTS
 ): StateRanking[] {
   // Create baseline lookup
   const baselineLookup: Record<string, StateBaselineWorkforce> = {}
@@ -97,7 +112,7 @@ export function calculateStateRankings(
 
   // Calculate rankings for states with connections
   const rankings: StateRanking[] = Object.values(stateScores).map(score => {
-    return calculateStateRankingFromScore(score, policies, baselineLookup)
+    return calculateStateRankingFromScore(score, policies, baselineLookup, weights)
   })
 
   // Add states with baseline data but no connections
@@ -118,7 +133,8 @@ export function calculateStateRankings(
 function calculateStateRankingFromScore(
   score: StateScoreAccumulator,
   policies: Policy[],
-  baselineLookup: Record<string, StateBaselineWorkforce>
+  baselineLookup: Record<string, StateBaselineWorkforce>,
+  weights: ScoringWeights = DEFAULT_SCORING_WEIGHTS
 ): StateRanking {
   const avgStrength = score.totalConnections > 0
     ? score.totalStrengthScore / score.totalConnections
@@ -189,20 +205,31 @@ function calculateStateRankingFromScore(
   const evidenceStrengthScore = Math.round(evidenceQualityScore * 20)
   const populationImpactScore = Math.round(populationScaleFactor * 50)
 
-  // Combined score calculation
+  // Medicaid reimbursement score
+  const reimbursementData = getStateReimbursementData(score.state)
+  const reimbursementScore = getStateReimbursementScore(score.state)
+  const reimbursementRatio = reimbursementData?.allServices ?? null
+
+  // Combined score calculation with configurable weights
   let combinedScore = baselineScore
   if (score.totalConnections > 0) {
-    const policyWeight = 0.35
-    const evidenceWeight = 0.15
-    const populationWeight = 0.10
-    const baselineWeight = 1 - (policyWeight + evidenceWeight + populationWeight)
-
     combinedScore = Math.round(
-      (baselineScore * baselineWeight) +
-      (policyImpactScore * policyWeight) +
-      (evidenceStrengthScore * evidenceWeight) +
-      (populationImpactScore * populationWeight)
+      (baselineScore * weights.baseline) +
+      (policyImpactScore * weights.policyConnections) +
+      (evidenceStrengthScore * weights.evidenceQuality) +
+      (populationImpactScore * weights.populationImpact) +
+      (reimbursementScore * weights.medicaidReimbursement)
     ) * shortageAreaBonus
+  } else {
+    // Even without connections, factor in reimbursement if weight > 0
+    if (weights.medicaidReimbursement > 0) {
+      const reimbWeight = weights.medicaidReimbursement / (weights.baseline + weights.medicaidReimbursement)
+      const baseWeight = 1 - reimbWeight
+      combinedScore = Math.round(
+        (baselineScore * baseWeight) +
+        (reimbursementScore * reimbWeight)
+      )
+    }
   }
 
   const workforceImpactScore = Math.max(0, Math.min(Math.round(combinedScore), 100))
@@ -237,6 +264,8 @@ function calculateStateRankingFromScore(
     baselineWorkforceScore: baselineScore,
     policyImpactScore: Math.round(policyImpactScore),
     hasBaselineData: !!baseline,
+    medicaidReimbursementRatio: reimbursementRatio ?? undefined,
+    medicaidReimbursementScore: reimbursementScore,
     policyEffectivenessScore,
     evidenceStrengthScore,
     populationImpactScore,
@@ -309,7 +338,11 @@ export function sortStateRankings(
  */
 export function generateMockStateRankings(states: string[]): StateRanking[] {
   return states.map(state => {
-    const score = Math.floor(Math.random() * 40) + 60
+    const reimbursementScore = getStateReimbursementScore(state)
+    const reimbursementData = getStateReimbursementData(state)
+    // Blend random policy score with real reimbursement data
+    const policyScore = Math.floor(Math.random() * 40) + 40
+    const score = Math.round(policyScore * 0.70 + reimbursementScore * 0.30)
     return {
       state,
       workforceImpactScore: score,
@@ -327,8 +360,10 @@ export function generateMockStateRankings(states: string[]): StateRanking[] {
       policies: Math.floor(Math.random() * 15) + 5,
       researchPapers: Math.floor(Math.random() * 10) + 3,
       baselineWorkforceScore: 50,
-      policyImpactScore: Math.floor(Math.random() * 30) + 40,
-      hasBaselineData: false
+      policyImpactScore: policyScore,
+      hasBaselineData: false,
+      medicaidReimbursementRatio: reimbursementData?.allServices ?? undefined,
+      medicaidReimbursementScore: reimbursementScore
     }
   }).sort((a, b) => b.workforceImpactScore - a.workforceImpactScore)
 }
@@ -378,5 +413,6 @@ export default {
   calculateStateRankings,
   sortStateRankings,
   generateMockStateRankings,
-  getRankingSummary
+  getRankingSummary,
+  DEFAULT_SCORING_WEIGHTS
 }
