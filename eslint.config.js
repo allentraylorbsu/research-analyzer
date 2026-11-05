@@ -5,7 +5,8 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  // vite.config.js is emitted by `tsc -b` during `npm run build`; lint the .ts source instead
+  globalIgnores(['dist', 'coverage', 'vite.config.js']),
   {
     files: ['**/*.{js,jsx}'],
     extends: [

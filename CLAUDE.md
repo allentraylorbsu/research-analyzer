@@ -24,7 +24,7 @@ Run against the working tree as it stands, in a clean `npm ci` environment:
 | `npx tsc --noEmit` | passes, 0 errors |
 | `npm run build` | passes (149 modules, ~4.5s) |
 | `npx vitest run` | 75/75 tests pass across 5 files |
-| `npx eslint .` | 6 errors, **all** in generated `vite.config.js` (`__dirname` no-undef) — no source errors |
+| `npx eslint .` | passes (generated `vite.config.js` is now ignored; fixed 2026-11-04) |
 | `npm run dev` + browser | renders fully, zero console errors, "Load Demo Data" → rankings works end to end |
 
 **The code is healthy.** Do not go looking for a build break; there isn't one.
@@ -165,17 +165,15 @@ These are real and worth fixing; none of them break the build.
 6. **`generateMockStateRankings` produces a dull demo.** Random policy score is
    40–79, so blended results top out around B+ and cluster in C/D. Widen the
    range if the demo should show the full A+–F scale.
-7. **ESLint lints generated output.** `vite.config.js`/`vite.config.d.ts` are
-   emitted by `tsc -b`; add them to the ESLint ignore list and `.gitignore`.
+7. ~~**ESLint lints generated output.**~~ Fixed 2026-11-04: `vite.config.js` is
+   in the ESLint ignore list and `.gitignore`.
 8. **Baseline-only rankings skip the new fields.** `createBaselineOnlyRanking`
    omits the Medicaid and confidence metrics that
    `calculateStateRankingFromScore` sets, so states with baseline data but no
    connections render a thinner detail card.
 9. **Test coverage is thin** — 5 files. `stateRankingCalculator` is well covered;
    the newer services (pubmed, openstates, newsapi, gdelt) have no tests at all.
-10. **There is no `LICENSE` file.** The README carries an MIT badge and links to
-    `LICENSE`, but the file doesn't exist — the link is dead and the license is
-    unstated. Add the MIT text before anyone else uses the repo.
+10. ~~**There is no `LICENSE` file.**~~ Fixed 2026-11-04: MIT `LICENSE` added.
 
 ## Commands
 
