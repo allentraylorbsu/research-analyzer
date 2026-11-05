@@ -29,29 +29,6 @@ Run against the working tree as it stands, in a clean `npm ci` environment:
 
 **The code is healthy.** Do not go looking for a build break; there isn't one.
 
-## Critical: uncommitted work in the tree
-
-`git log` ends at **Jan 21, 2026** — `Add Policy Discovery with Open States,
-NewsAPI, and GDELT integration`.
-
-Ten files were then modified on **Feb 5, 2026 and never committed**. They form
-one complete, working feature — Medicaid reimbursement as a scoring input, plus
-a research-justification system for the weights:
-
-- `src/data/medicaidReimbursement.ts` *(new file)*
-- `src/components/visualization/ScoringJustificationPanel.tsx` *(new file)*
-- `src/components/visualization/StateRankings.tsx` (weight sliders added)
-- `src/components/visualization/index.ts`
-- `src/services/stateRankingCalculator.ts` (weights are now a parameter)
-- `src/services/index.ts`
-- `src/hooks/useStateRankings.ts` (recalculates on weight change)
-- `src/types/state.types.ts` (`ScoringWeights`, `ScoringFactor`, `ScoringJustification`)
-- `src/types/index.ts`
-- `src/App.tsx` (wires in both new panels)
-
-**Commit this before making any other change.** It is seven months of
-unprotected work and it builds, typechecks, and passes tests.
-
 ## Stack
 
 React 19 · TypeScript 5.4 (strict, `noUnusedLocals`, `isolatedModules`) ·
