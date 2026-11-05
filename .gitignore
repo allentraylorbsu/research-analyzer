@@ -23,6 +23,9 @@ coverage/
 # TypeScript build info
 *.tsbuildinfo
 
+# Emitted by `tsc -b` from vite.config.ts during `npm run build`
+vite.config.js
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
